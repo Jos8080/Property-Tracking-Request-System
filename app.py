@@ -2,19 +2,31 @@ import streamlit as st
 import pandas as pd
 from gspread_pandas import Spread
 from datetime import datetime
-import json
 
 st.set_page_config(page_title="Inventory System", layout="wide")
 st.title("ዲጂታል የንብረት ቁጥጥር እና ጥያቄ ማቅረቢያ")
 
-# ምስጢራዊ ቁልፉን ከ Secrets ላይ በንጽህና መቀበል
+# ምስጢራዊ ቁልፉን በቀጥታ እዚህ እናስቀምጠው (ምንም አይነት \n እንዳይጠፋ)
+private_key = st.secrets["gcp_service_account"]["private_key"]
+
+# የ Base64 ስህተትን ለመከላከል ቁልፉን እናጽዳው
+if "\\n" in private_key:
+    private_key = private_key.replace("\\n", "\n")
+
+creds_dict = {
+    "type": st.secrets["gcp_service_account"]["type"],
+    "project_id": st.secrets["gcp_service_account"]["project_id"],
+    "private_key_id": st.secrets["gcp_service_account"]["private_key_id"],
+    "private_key": private_key,
+    "client_email": st.secrets["gcp_service_account"]["client_email"],
+    "client_id": st.secrets["gcp_service_account"]["client_id"],
+    "auth_uri": st.secrets["gcp_service_account"]["auth_uri"],
+    "token_uri": st.secrets["gcp_service_account"]["token_uri"],
+    "auth_provider_x509_cert_url": st.secrets["gcp_service_account"]["auth_provider_x509_cert_url"],
+    "client_x509_cert_url": st.secrets["gcp_service_account"]["client_x509_cert_url"]
+}
+
 try:
-    # በ Secrets ውስጥ 'gcp_service_account' በሚል የተቀመጠውን ዳታ ማንበብ
-    creds_dict = dict(st.secrets["gcp_service_account"])
-    
-    # ሰረዞችን ማስተካከል (ይህ የ Base64 ስህተትን ይከላከላል)
-    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
-    
     # ከጎግል ሺት ጋር መገናኘት
     spread = Spread('Inventory_Database', config=creds_dict)
     
