@@ -12,8 +12,9 @@ st.title("ዲጂታል የንብረት ቁጥጥር እና ጥያቄ ማቅረ�
 try:
     creds_dict = dict(st.secrets["gcp_service_account"])
     # 'Inventory_Database' የጎግል ሺቱ ስም መሆኑን አረጋግጪ
-    spread = Spread('Inventory_Database', config=creds_dict)
     creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+    spread = Spread('Inventory_Database', config=creds_dict)
+   
     
     # ዳታውን ከሺቱ ላይ ማንበብ (Sheet names: Items, Trainers, Requests)
     items_df = spread.sheet_to_df(sheet='Items', index=0)
@@ -66,4 +67,5 @@ else:
     
     st.write("### የክምችት ሁኔታ")
     st.table(items_df)
+
 
