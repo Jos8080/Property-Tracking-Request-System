@@ -12,18 +12,22 @@ try:
     s_account = st.secrets["gcp_service_account"]
     
     # ዲክሽነሪ መፍጠር (ይህ Base64 ስህተትን ይከላከላል)
-    creds_dict = {
-        "type": s_account["type"],
-        "project_id": s_account["project_id"],
-        "private_key_id": s_account["private_key_id"],
-        "private_key": s_account["private_key"].replace("\\n", "\n"),
-        "client_email": s_account["client_email"],
-        "client_id": s_account["client_id"],
-        "auth_uri": s_account["auth_uri"],
-        "token_uri": s_account["token_uri"],
-        "auth_provider_x509_cert_url": s_account["auth_provider_x509_cert_url"],
-        "client_x509_cert_url": s_account["client_x509_cert_url"]
-    }
+    # app.py ውስጥ ያለው Credential ክፍል እንዲህ መሆን አለበት
+s_account = st.secrets["gcp_service_account"]
+creds_dict = {
+    "type": s_account["type"],
+    "project_id": s_account["project_id"],
+    "private_key_id": s_account["private_key_id"],
+    "private_key": s_account["private_key"].replace("\\n", "\n"), # ይህ መስመር ወሳኝ ነው!
+    "client_email": s_account["client_email"],
+    "client_id": s_account["client_id"],
+    "auth_uri": s_account["auth_uri"],
+    "token_uri": s_account["token_uri"],
+    "auth_provider_x509_cert_url": s_account["auth_provider_x509_cert_url"],
+    "client_x509_cert_url": s_account["client_x509_cert_url"]
+}
+
+spread = Spread('Inventory_Database', config=creds_dict)
 
     # ከጎግል ሺት ጋር መገናኘት
     spread = Spread('Inventory_Database', config=creds_dict)
@@ -66,3 +70,4 @@ try:
 
 except Exception as e:
     st.error(f"ስህተት ተፈጥሯል፡ {e}")
+
