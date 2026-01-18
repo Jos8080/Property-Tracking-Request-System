@@ -1,0 +1,63 @@
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+
+# የሲስተሙ ርዕስ
+st.set_page_config(page_title="የንብረት ቁጥጥር ሲስተም", layout="wide")
+st.title("Inventory & Request Management System")
+
+# የውሂብ ማስቀመጫ (ለሙከራ ያህል በ Session State)
+if 'inventory' not in st.session_state:
+    st.session_state.inventory = pd.DataFrame([
+        {"ItemID": 1, "ItemName": "Laptop", "Total": 10, "Available": 10},
+        {"ItemID": 2, "ItemName": "Projector", "Total": 5, "Available": 5}
+    ])
+
+if 'requests' not in st.session_state:
+    st.session_state.requests = pd.DataFrame(columns=["Trainer", "Item", "Qty", "Status", "Date"])
+
+# የጎን ማውጫ (Sidebar) ለተጠቃሚ መለያ
+role = st.sidebar.selectbox("ጥቅም ላይ የዋለው አካል (Role)", ["አሰልጣኝ (Trainer)", "ዲፓርትመንት ሀላፊ (Admin)"])
+
+# --- 1. የአሰልጣኝ ክፍል ---
+if role == "አሰልጣኝ (Trainer)":
+    st.header("እቃ ለመጠየቂያ ቅጽ")
+    
+    # ያሉ እቃዎችን ማሳያ
+    st.subheader("በክምችት ላይ ያሉ እቃዎች")
+    st.table(st.session_state.inventory)
+    
+    with st.form("request_form"):
+        trainer_name = st.text_input("የአሰልጣኝ ስም")
+        item_to_request = st.selectbox("የሚፈልጉት እቃ", st.session_state.inventory["ItemName"])
+        qty_requested = st.number_input("ብዛት", min_value=1)
+        submit = st.form_submit_button("ጥያቄ አቅርብ")
+        
+        if submit:
+            new_req = {"Trainer": trainer_name, "Item": item_to_request, "Qty": qty_requested, 
+                       "Status": "ጥበቃ ላይ (Pending)", "Date": datetime.now().strftime("%Y-%m-%d")}
+            st.session_state.requests = pd.concat([st.session_state.requests, pd.DataFrame([new_req])], ignore_index=True)
+            st.success("ጥያቄዎ ለሀላፊው ተልኳል!")
+
+# --- 2. የሀላፊው ክፍል ---
+else:
+    st.header("የአስተዳደር ፓነል")
+    
+    st.subheader("የቀረቡ የዕቃ ጥያቄዎች")
+    if not st.session_state.requests.empty:
+        for index, row in st.session_state.requests.iterrows():
+            if row["Status"] == "ጥበቃ ላይ (Pending)":
+                col1, col2, col3 = st.columns([3, 1, 1])
+                col1.write(f"{row['Trainer']} - {row['Item']} (ብዛት: {row['Qty']})")
+                if col2.button("አጽድቅ", key=f"app_{index}"):
+                    st.session_state.requests.at[index, "Status"] = "የጸደቀ (Approved)"
+                    # ክምችቱን ቀንሰው
+                    item_idx = st.session_state.inventory.index[st.session_state.inventory['ItemName'] == row['Item']][0]
+                    st.session_state.inventory.at[item_idx, "Available"] -= row["Qty"]
+                    st.rerun()
+                if col3.button("ሰርዝ", key=f"rej_{index}"):
+                    st.session_state.requests.at[index, "Status"] = "የተሰረዘ (Rejected)"
+                    st.rerun()
+    
+    st.subheader("የንብረት ክምችት ሁኔታ")
+    st.dataframe(st.session_state.inventory)
