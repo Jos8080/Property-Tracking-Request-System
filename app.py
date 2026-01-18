@@ -1,64 +1,67 @@
 import streamlit as st
 import pandas as pd
+from gspread_pandas import Spread
 from datetime import datetime
+import json
 
-# የሲስተሙ ርዕስ
-st.set_page_config(page_title="የንብረት ቁጥጥር ሲስተም", layout="wide")
-st.title("Inventory & Request Management System")
+# የዲፓርትመንት ስም እና ርዕስ
+st.set_page_config(page_title="Inventory Management System", layout="wide")
+st.title("ዲጂታል የንብረት ቁጥጥር እና ጥያቄ ማቅረቢያ")
 
-# የውሂብ ማስቀመጫ (ለሙከራ ያህል በ Session State)
-if 'inventory' not in st.session_state:
-    st.session_state.inventory = pd.DataFrame([
-        {"ItemID": 1, "ItemName": "Laptop", "Total": 10, "Available": 10},
-        {"ItemID": 2, "ItemName": "Projector", "Total": 5, "Available": 5}
-    ])
-
-if 'requests' not in st.session_state:
-    st.session_state.requests = pd.DataFrame(columns=["Trainer", "Item", "Qty", "Status", "Date"])
-
-# የጎን ማውጫ (Sidebar) ለተጠቃሚ መለያ
-role = st.sidebar.selectbox("ጥቅም ላይ የዋለው አካል (Role)", ["አሰልጣኝ (Trainer)", "ዲፓርትመንት ሀላፊ (Admin)"])
-
-# --- 1. የአሰልጣኝ ክፍል ---
-if role == "አሰልጣኝ (Trainer)":
-    st.header("እቃ ለመጠየቂያ ቅጽ")
+# በ Secrets ውስጥ ያስገባሽውን ቁልፍ ለአፑ ማስተዋወቅ
+try:
+    creds_dict = dict(st.secrets["gcp_service_account"])
+    # 'Inventory_Database' የጎግል ሺቱ ስም መሆኑን አረጋግጪ
+    spread = Spread('Inventory_Database', config=creds_dict)
     
-    # ያሉ እቃዎችን ማሳያ
-    st.subheader("በክምችት ላይ ያሉ እቃዎች")
-    st.table(st.session_state.inventory)
+    # ዳታውን ከሺቱ ላይ ማንበብ (Sheet names: Items, Trainers, Requests)
+    items_df = spread.sheet_to_df(sheet='Items', index=0)
+    trainers_df = spread.sheet_to_df(sheet='Trainers', index=0)
+    trainers_list = trainers_df['FullName'].tolist()
     
+except Exception as e:
+    st.error(f"ከጎግል ሺት ጋር መገናኘት አልተቻለም። ስህተቱ፡ {e}")
+    st.stop()
+
+# የጎን ማውጫ (User Roles)
+role = st.sidebar.selectbox("ተግባርዎን ይምረጡ", ["አሰልጣኝ", "አሲስታንት", "ሀላፊ"])
+
+# --- 1. አሰልጣኝ ክፍል ---
+if role == "አሰልጣኝ":
+    st.subheader("የእቃ መጠየቂያ ፎርም")
     with st.form("request_form"):
-        trainer_name = st.text_input("የአሰልጣኝ ስም")
-        item_to_request = st.selectbox("የሚፈልጉት እቃ", st.session_state.inventory["ItemName"])
-        qty_requested = st.number_input("ብዛት", min_value=1)
-        submit = st.form_submit_button("ጥያቄ አቅርብ")
+        name = st.selectbox("ስምዎን ይምረጡ", trainers_list)
+        item = st.selectbox("የሚፈልጉት እቃ", items_df['ItemName'].tolist())
+        qty = st.number_input("ብዛት", min_value=1, step=1)
+        submit = st.form_submit_button("ጥያቄ ላክ")
         
         if submit:
-            new_req = {"Trainer": trainer_name, "Item": item_to_request, "Qty": qty_requested, 
-                       "Status": "ጥበቃ ላይ (Pending)", "Date": datetime.now().strftime("%Y-%m-%d")}
-            st.session_state.requests = pd.concat([st.session_state.requests, pd.DataFrame([new_req])], ignore_index=True)
-            st.success("ጥያቄዎ ለሀላፊው ተልኳል!")
+            new_req = pd.DataFrame([[name, item, qty, "Pending", str(datetime.now().date())]])
+            spread.df_to_sheet(new_req, sheet='Requests', index=False, replace=False, add=True)
+            st.success(f"ጥያቄዎ ተመዝግቧል! ለሀላፊው ተልኳል።")
 
-# --- 2. የሀላፊው ክፍል ---
+# --- 2. አሲስታንት ክፍል ---
+elif role == "አሲስታንት":
+    st.subheader("አዲስ ንብረት ማስገቢያ")
+    with st.form("add_item"):
+        new_item = st.text_input("የእቃ ስም")
+        total_qty = st.number_input("ጠቅላላ ብዛት", min_value=1)
+        if st.form_submit_button("መዝግብ"):
+            new_row = pd.DataFrame([[new_item, total_qty, total_qty]])
+            spread.df_to_sheet(new_row, sheet='Items', index=False, replace=False, add=True)
+            st.success("አዲስ እቃ ተጨምሯል!")
+    
+    st.divider()
+    st.subheader("ያሉ እቃዎች ዝርዝር")
+    st.dataframe(items_df)
+
+# --- 3. ሀላፊ (Admin) ክፍል ---
 else:
-    st.header("የአስተዳደር ፓነል")
+    st.subheader("የአስተዳደር እና የቁጥጥር ፓነል")
+    requests_df = spread.sheet_to_df(sheet='Requests', index=0)
     
-    st.subheader("የቀረቡ የዕቃ ጥያቄዎች")
-    if not st.session_state.requests.empty:
-        for index, row in st.session_state.requests.iterrows():
-            if row["Status"] == "ጥበቃ ላይ (Pending)":
-                col1, col2, col3 = st.columns([3, 1, 1])
-                col1.write(f"{row['Trainer']} - {row['Item']} (ብዛት: {row['Qty']})")
-                if col2.button("አጽድቅ", key=f"app_{index}"):
-                    st.session_state.requests.at[index, "Status"] = "የጸደቀ (Approved)"
-                    # ክምችቱን ቀንሰው
-                    item_idx = st.session_state.inventory.index[st.session_state.inventory['ItemName'] == row['Item']][0]
-                    st.session_state.inventory.at[item_idx, "Available"] -= row["Qty"]
-                    st.rerun()
-                if col3.button("ሰርዝ", key=f"rej_{index}"):
-                    st.session_state.requests.at[index, "Status"] = "የተሰረዘ (Rejected)"
-                    st.rerun()
+    st.write("### የጥያቄዎች እና የርክክብ ታሪክ")
+    st.dataframe(requests_df)
     
-    st.subheader("የንብረት ክምችት ሁኔታ")
-
-    st.dataframe(st.session_state.inventory)
+    st.write("### የክምችት ሁኔታ")
+    st.table(items_df)
