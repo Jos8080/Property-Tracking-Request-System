@@ -60,4 +60,5 @@ else:
                     st.rerun()
     
     st.subheader("የንብረት ክምችት ሁኔታ")
+
     st.dataframe(st.session_state.inventory)
